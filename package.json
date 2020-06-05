@@ -1,0 +1,32 @@
+{
+  "name": "mongodb-filesystem",
+  "version": "1.1.5",
+  "description": "Implements a basic filesystem using the MongoDB GridFS interface",
+  "main": "mongodb-filesystem.js",
+  "scripts": {
+    "doc": "jsdoc2md -p list --separators -d 1 mongodb-filesystem.js > README.md",
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fhellwig/mongodb-filesystem.git"
+  },
+  "keywords": [
+    "mongodb",
+    "filesystem"
+  ],
+  "author": "Frank Hellwig <frank@hellwig.org>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/fhellwig/mongodb-filesystem/issues"
+  },
+  "homepage": "https://github.com/fhellwig/mongodb-filesystem#readme",
+  "peerDependencies": {
+    "mongodb": "^3.5.7"
+  },
+  "devDependencies": {
+    "jsdoc-to-markdown": "^5.0.3",
+    "mocha": "^7.1.2",
+    "mongodb": "^3.5.7"
+  }
+}
