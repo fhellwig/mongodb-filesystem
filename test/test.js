@@ -136,10 +136,11 @@ describe('MongoFS', function () {
   });
 
   describe('getFolders', function () {
-    it('should retrieve the folders contains in a parent folder', async function () {
+    it('should retrieve the folders contained in a parent folder', async function () {
       await mfs.createFile('/a/x/test', 'test');
       await mfs.createFile('/a/y/test', 'test');
       await mfs.createFile('/a/z/test', 'test');
+      await mfs.createFile('/a/z/test1', 'test');
       const folders = await mfs.getFolders('/a');
       assert.equal(folders.length, 3);
     });
@@ -151,6 +152,9 @@ describe('MongoFS', function () {
       await mfs.deleteFolder('/a');
       const folders = await mfs.getFolders('/a');
       assert.equal(folders.length, 0);
+    });
+    after(async function () {
+      await mfs.deleteFolder('/a');
     });
   });
 

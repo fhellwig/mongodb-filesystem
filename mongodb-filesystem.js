@@ -253,10 +253,11 @@ class MongoFS {
     const folders = await this._bucket
       .find({ filename: { $regex: `^${target}/.+/.+$` } })
       .toArray();
-    return folders.map((f) => {
+    const names = folders.map((f) => {
       const name = f.filename.substring(target.length + 1);
       return name.substring(0, name.indexOf('/'));
     });
+    return names.filter((name, i) => names.indexOf(name) === i);
   }
 
   /**
