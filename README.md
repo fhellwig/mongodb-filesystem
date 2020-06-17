@@ -15,7 +15,7 @@ const mongofs = new MongoFS(db);
 
 * [mongodb-filesystem](#module_mongodb-filesystem)
     * [MongoFS](#exp_module_mongodb-filesystem--MongoFS) ⏏
-        * [new MongoFS(db, [options])](#new_module_mongodb-filesystem--MongoFS_new)
+        * [new MongoFS(db, [options], [modified])](#new_module_mongodb-filesystem--MongoFS_new)
         * [.createFile(pathname, buf, [metadata], [contentType])](#module_mongodb-filesystem--MongoFS+createFile) ⇒ <code>Promise</code>
         * [.createOrUpdateFile(pathname, buf, [metadata], [contentType])](#module_mongodb-filesystem--MongoFS+createOrUpdateFile) ⇒ <code>Promise</code>
         * [.deleteFile(pathname)](#module_mongodb-filesystem--MongoFS+deleteFile) ⇒ <code>Promise</code>
@@ -68,14 +68,17 @@ names and renaming folders to existing folder or file names.
 
 <a name="new_module_mongodb-filesystem--MongoFS_new"></a>
 
-### new MongoFS(db, [options])
+### new MongoFS(db, [options], [modified])
 Creates a new MongoFS instance by creating a GridFSBucket using the
-specified (optional) options.
+specified (optional) options. The modified function, if specified,
+is called for all actions that perform a mutation. The function is
+passed a single string argument identifying the mutation.
 
 **Params**
 
 - db <code>object</code> - A database handle.
 - [options] <code>object</code> - The options passed to the GridFSBucket constructor.
+- [modified] <code>function</code> - A function called for all mutation actions.
 
 
 * * *

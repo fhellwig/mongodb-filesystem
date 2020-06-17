@@ -69,11 +69,19 @@ const { GridFSBucket } = require('mongodb');
 class MongoFS {
   /**
    * Creates a new MongoFS instance by creating a GridFSBucket using the
-   * specified (optional) options.
+   * specified (optional) options. The modified function, if specified,
+   * is called for all actions that perform a mutation. The function is
+   * passed a single string argument identifying the mutation.
    * @param {object} db - A database handle.
    * @param {object} [options] - The options passed to the GridFSBucket constructor.
+   * @param {function} [modified] - A function called for all mutation actions.
    */
-  constructor(db, options) {
+  constructor(db, options, modified) {
+    if (typeof options === 'function') {
+      modified = options;
+      options = {};
+    }
+    this._modified = typeof modified === 'function' ? modified : () => {};
     this._db = db;
     this._bucket = new GridFSBucket(db, options);
     if (options != null && typeof options.bucketName === 'string') {
@@ -120,6 +128,7 @@ class MongoFS {
         if (err) {
           reject(err);
         } else {
+          this._modified(`createFile: ${target}`);
           resolve(1);
         }
       });
@@ -156,6 +165,7 @@ class MongoFS {
     const [_, target] = resolve('/', pathname);
     const file = await this._findOne(target);
     await this._bucket.delete(file._id);
+    this._modified(`deleteFile: ${target}`);
     return 1;
   }
 
@@ -172,6 +182,7 @@ class MongoFS {
     for (let i = 0; i < count; i++) {
       await this._bucket.delete(files[i]._id);
     }
+    this._modified(`deleteFolder: ${target || '/'}`);
     return count;
   }
 
@@ -310,6 +321,7 @@ class MongoFS {
     const file = await this._findOne(oldPathname);
     await this._checkForConflict(newPathname, 'Rename File');
     await this._bucket.rename(file._id, newPathname);
+    this._modified(`renameFile: ${oldPathname} to ${newPathname}`);
     return 1;
   }
 
@@ -332,6 +344,7 @@ class MongoFS {
       const newName = newFolder + file.filename.substr(oldFolder.length);
       await this._bucket.rename(file._id, newName);
     }
+    this._modified(`renameFolder: ${oldFolder} to ${newFolder}`);
     return count;
   }
 
@@ -367,6 +380,7 @@ class MongoFS {
     const [_, target] = resolve('/', pathname);
     const file = await this._findOne(target);
     await this._files().updateOne({ _id: file._id }, { $set: { metadata } });
+    this._modified(`updateMetadata: ${target}`);
     return 1;
   }
 
