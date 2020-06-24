@@ -119,16 +119,16 @@ class MongoFS {
     if (typeof contentType !== 'string') {
       contentType = isString ? 'text/plain' : 'application/octet-stream';
     }
-    const [_, target] = resolve('/', pathname);
-    await this._checkForConflict(target, 'Create File');
-    const stream = this._bucket.openUploadStream(target, { metadata, contentType });
+    pathname = resolve(pathname); // normalize
+    await this._checkForConflict(pathname, 'Create File');
+    const stream = this._bucket.openUploadStream(pathname, { metadata, contentType });
     return new Promise((resolve, reject) => {
       stream.write(buf);
       stream.end((err) => {
         if (err) {
           reject(err);
         } else {
-          this._modified(`createFile: ${target}`);
+          this._modified(`createFile: ${pathname}`);
           resolve(1);
         }
       });
@@ -162,10 +162,10 @@ class MongoFS {
    * @returns {Promise} Resolved with the number of files deleted (always 1).
    */
   async deleteFile(pathname) {
-    const [_, target] = resolve('/', pathname);
-    const file = await this._findOne(target);
+    pathname = resolve(pathname);
+    const file = await this._findOne(pathname);
     await this._bucket.delete(file._id);
-    this._modified(`deleteFile: ${target}`);
+    this._modified(`deleteFile: ${pathname}`);
     return 1;
   }
 
@@ -176,13 +176,13 @@ class MongoFS {
    * @returns {Promise} Resolved with the number of files deleted.
    */
   async deleteFolder(folder) {
-    const [_, target] = resolve('/', folder);
-    const files = await this._bucket.find({ filename: { $regex: `^${target}/` } }).toArray();
+    folder = resolve(folder);
+    const files = await this._bucket.find({ filename: { $regex: `^${folder}/` } }).toArray();
     const count = files.length;
     for (let i = 0; i < count; i++) {
       await this._bucket.delete(files[i]._id);
     }
-    this._modified(`deleteFolder: ${target || '/'}`);
+    this._modified(`deleteFolder: ${folder || '/'}`);
     return count;
   }
 
@@ -217,8 +217,8 @@ class MongoFS {
    * @returns {Promise} Resolved with a descriptor that includes content.
    */
   async getFile(pathname) {
-    const [_, target] = resolve('/', pathname);
-    const file = await this._findOne(target);
+    pathname = resolve(pathname);
+    const file = await this._findOne(pathname);
     const retval = descriptor(file);
     const stream = this._bucket.openDownloadStream(file._id);
     return new Promise((resolve, reject) => {
@@ -245,8 +245,8 @@ class MongoFS {
    * @returns {Promise} Resolved with an array of descriptor objects or filenames.
    */
   async getFiles(folder, filenamesOnly) {
-    const [_, target] = resolve('/', folder);
-    const files = await this._bucket.find({ filename: { $regex: `^${target}/[^/]+$` } }).toArray();
+    folder = resolve(folder);
+    const files = await this._bucket.find({ filename: { $regex: `^${folder}/[^/]+$` } }).toArray();
     if (filenamesOnly) {
       return files.map((f) => basename(f.filename));
     } else {
@@ -260,12 +260,12 @@ class MongoFS {
    * @returns {Promise} Resolved with an array of subfolder names.
    */
   async getFolders(parent) {
-    const [_, target] = resolve('/', parent);
+    parent = resolve(parent);
     const folders = await this._bucket
-      .find({ filename: { $regex: `^${target}/.+/.+$` } })
+      .find({ filename: { $regex: `^${parent}/.+/.+$` } })
       .toArray();
     const names = folders.map((f) => {
-      const name = f.filename.substring(target.length + 1);
+      const name = f.filename.substring(parent.length + 1);
       return name.substring(0, name.indexOf('/'));
     });
     return names.filter((name, i) => names.indexOf(name) === i);
@@ -277,8 +277,8 @@ class MongoFS {
    * @returns {Promise} - Resolved with the metadata of the file.
    */
   async getMetadata(pathname) {
-    const [_, target] = resolve('/', pathname);
-    const file = await this._findOne(target);
+    pathname = resolve(pathname);
+    const file = await this._findOne(pathname);
     return file.metadata;
   }
 
@@ -288,8 +288,8 @@ class MongoFS {
    * @returns {Promise} - Resolved with a boolean.
    */
   async isFile(pathname) {
-    const [_, target] = resolve('/', pathname);
-    const file = await this._files().findOne({ filename: target });
+    pathname = resolve(pathname);
+    const file = await this._files().findOne({ filename: pathname });
     return !!file;
   }
 
@@ -301,9 +301,9 @@ class MongoFS {
    * @returns {Promise} - Resolved with a boolean.
    */
   async isFolder(pathname) {
-    const [_, target] = resolve('/', pathname);
+    pathname = resolve(pathname);
     const files = await this._files()
-      .find({ filename: { $regex: `^${target}/` } })
+      .find({ filename: { $regex: `^${pathname}/` } })
       .toArray();
     return files.length > 0;
   }
@@ -341,7 +341,7 @@ class MongoFS {
     const count = files.length;
     for (let i = 0; i < count; i++) {
       const file = files[i];
-      const newName = newFolder + file.filename.substr(oldFolder.length);
+      const newName = newFolder + file.filename.substring(oldFolder.length);
       await this._bucket.rename(file._id, newName);
     }
     this._modified(`renameFolder: ${oldFolder} to ${newFolder}`);
@@ -377,10 +377,10 @@ class MongoFS {
    * @returns {Promise} Resolved with the number of files updated (always 1).
    */
   async updateMetadata(pathname, metadata) {
-    const [_, target] = resolve('/', pathname);
-    const file = await this._findOne(target);
+    pathname = resolve(pathname);
+    const file = await this._findOne(pathname);
     await this._files().updateOne({ _id: file._id }, { $set: { metadata } });
-    this._modified(`updateMetadata: ${target}`);
+    this._modified(`updateMetadata: ${pathname}`);
     return 1;
   }
 
@@ -490,9 +490,18 @@ function normalize(components) {
   return retval;
 }
 
-// Resolves a target path against a source path and returns a two-element
-// array [source, target] where source is the normalized source path and
-// target is the original target resolved against the source.
+// When called with one argument, normalizes that argument and returns an
+// absolute path. The argument is assumed to be an absolute path, even if
+// it does not start with a slash. For example, with called as follows...
+//
+//   resolve('a/../../b\\   c  \\ . \\ d/e')refer to an
+//
+// ...returns the absolute path '/b/c/d/e'.
+//
+// When called with two arguments, source and target, resolves the target
+// path against a source path and returns a two-element array in the form
+// [source, target] where source is the normalized source path and target
+// is the original target resolved against the source.
 //
 // Ex 1: resolve('/a/b/old', 'new') -> ['/a/b/old', '/a/b/new']
 //       (a simple filename replacement)
@@ -507,12 +516,19 @@ function normalize(components) {
 // There, they call the source the base and the target the reference.
 // Note that trailing slashes are ignored and the returned values will
 // always start with a slash and never end with one.
+//
+// In all cases (one- or two-argument variants), a root-only path ('/')
+// returns an empty string. This is done so that substring operations
+// work and that an absolute path with an appended slash will not result
+// in a double-slash for the root folder.
 function resolve(source, target) {
   // Split and validate the source pathname.
-  let [sourceComponents, sourceIsAbsolute] = split(source);
+  let [sourceComponents, _] = split(source);
   sourceComponents = normalize(sourceComponents);
-  if (!sourceIsAbsolute) {
-    throw new Error('The source must be absolute');
+  // Single argument variant.
+  if (target === undefined) {
+    sourceComponents.unshift(''); // ensure a leading slash
+    return sourceComponents.join('/');
   }
   // Split the target. Resolve first and then validate.
   let [targetComponents, targetIsAbsolute] = split(target);

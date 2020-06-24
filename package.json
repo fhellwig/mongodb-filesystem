@@ -1,6 +1,6 @@
 {
   "name": "mongodb-filesystem",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "Implements a basic filesystem using the MongoDB GridFS interface",
   "main": "mongodb-filesystem.js",
   "scripts": {
